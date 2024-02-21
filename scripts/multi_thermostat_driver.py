@@ -39,11 +39,12 @@ CAPTURE_WARNINGS = True
 # logging.json: Normal logging example
 # logging_noisy.json: Turns on all debugging information
 # logging_quiet.json: Only logs error messages
-LOGGING_CONFIG = 'logging.json'
+LOGGING_CONFIG = 'scripts/logging.json'
 
 # Save cached weather data files? (Default: False)
 SAVE_CACHE = False
 CACHE_PATH = None  # Replace with location to save the weather cache files (e.g. '/tmp/epathermosat')
+TAU_SAVE_PATH = Path('outputs')
 
 # This section finds the metadata files and data files for the thermostats.
 # These point to examples of the various styles of files
@@ -51,8 +52,8 @@ CACHE_PATH = None  # Replace with location to save the weather cache files (e.g.
 # data in the same file.
 
 # Single Stage
-DATA_DIR = Path('../../datadir/EPA_Tau')
-METADATA_FILENAME = DATA_DIR / '2019_epa_tau.csv'
+DATA_DIR = Path('inputs')
+METADATA_FILENAME = DATA_DIR / 'metadata.csv'
 
 # Two Stage
 # DATA_DIR = os.path.join('..', 'tests', 'data', 'two_stage')
