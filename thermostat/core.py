@@ -190,6 +190,10 @@ class Thermostat(object):
         climate_zone,
         temperature_in,
         temperature_out,
+        heating_setpoint,
+        cooling_setpoint,
+        use_setpoint_comfort_temp,
+        use_setpoint_savings,
         cool_runtime,
         heat_runtime,
         auxiliary_heat_runtime,
@@ -248,6 +252,10 @@ class Thermostat(object):
         self.temperature_in = self.temperature_in.where(
             self.enough_temp_in.resample("H").ffill(), np.nan
         )
+        self.heating_setpoint = heating_setpoint
+        self.cooling_setpoint = cooling_setpoint
+        self.use_setpoint_comfort_temp = use_setpoint_comfort_temp
+        self.use_setpoint_savings = use_setpoint_savings
         self.temperature_out = self.temperature_out.where(
             self.enough_temp_out.resample("H").ffill(), np.nan
         )
@@ -941,7 +949,11 @@ class Thermostat(object):
 
         self._protect_cooling()
 
-        core_day_set_temp_in = self.temperature_in[core_cooling_day_set.hourly]
+        if self.use_setpoint_savings:   # Use cooling setpoint temperature for savings calculations
+            core_day_set_temp_in = self.cooling_setpoint[core_cooling_day_set.hourly]
+        else:
+            core_day_set_temp_in = self.temperature_in[core_cooling_day_set.hourly]
+            
         core_day_set_temp_out = self.temperature_out[core_cooling_day_set.hourly]
         core_day_set_deltaT = core_day_set_temp_in - core_day_set_temp_out
 
@@ -1081,7 +1093,10 @@ class Thermostat(object):
 
         self._protect_heating()
 
-        core_day_set_temp_in = self.temperature_in[core_heating_day_set.hourly]
+        if self.use_setpoint_savings:
+            core_day_set_temp_in = self.temperature_in[core_heating_day_set.hourly]
+        else:
+            core_day_set_temp_in = self.heating_setpoint[core_heating_day_set.hourly]
         core_day_set_temp_out = self.temperature_out[core_heating_day_set.hourly]
         core_day_set_deltaT = core_day_set_temp_in - core_day_set_temp_out
 
@@ -1278,10 +1293,18 @@ class Thermostat(object):
         self._protect_cooling()
 
         hourly_temp_out = self.temperature_out[core_cooling_day_set.hourly]
-
-        hourly_cdd = (tau - (temp_baseline - hourly_temp_out)).apply(
+        # temp_baseline will be a float if use_setpoint_comfort_temp is False, 
+        # but it can be a pd.Series/float when use_setpoint_comfort_temp is True. This is because 
+        # get_baseline_cooling_demand is used in multiple places. 
+        if self.use_setpoint_comfort_temp and isinstance(temp_baseline, pd.Series):
+            hourly_temp_baseline = temp_baseline[core_cooling_day_set.hourly]
+            hourly_cdd = (tau - (hourly_temp_baseline - hourly_temp_out)).apply(
             lambda x: np.maximum(x, 0)
         )
+        else:
+            hourly_cdd = (tau - (temp_baseline - hourly_temp_out)).apply(
+                lambda x: np.maximum(x, 0)
+            )
         demand = np.array(
             [
                 cdd.sum() / 24
@@ -1325,10 +1348,17 @@ class Thermostat(object):
         self._protect_heating()
 
         hourly_temp_out = self.temperature_out[core_heating_day_set.hourly]
-
-        hourly_hdd = (temp_baseline - hourly_temp_out - tau).apply(
-            lambda x: np.maximum(x, 0)
-        )
+        # temp_baseline will be a float if use_setpoint_comfort_temp is False, 
+        # but it can be a pd.Series/float when use_setpoint_comfort_temp is True. This is because 
+        # get_baseline_cooling_demand is used in multiple places. 
+        if self.use_setpoint_comfort_temp and isinstance(temp_baseline, pd.Series):
+            hourly_heating_temp_baseline = temp_baseline[core_heating_day_set.hourly]
+            hourly_hdd = (hourly_heating_temp_baseline - hourly_temp_out - tau).apply(
+                lambda x: np.maximum(x, 0))
+        else:
+            hourly_hdd = (temp_baseline - hourly_temp_out - tau).apply(
+                lambda x: np.maximum(x, 0)
+                )
         demand = np.array(
             [
                 hdd.sum() / 24
@@ -1447,9 +1477,10 @@ class Thermostat(object):
         baseline_regional_cooling_comfort_temperature,
     ):
 
-        baseline10_comfort_temperature = self.get_core_cooling_day_baseline_setpoint(
-            core_cooling_day_set
-        )
+        if self.use_setpoint_comfort_temp: # This makes baseline10_comfort_temperature a pd.Series
+            baseline10_comfort_temperature = self.cooling_setpoint
+        else: # This makes baseline10_comfort_temperature a float
+            baseline10_comfort_temperature = self.get_core_cooling_day_baseline_setpoint(core_cooling_day_set)
 
         daily_runtime = self.cool_runtime_daily[core_cooling_day_set.daily]
 
@@ -1591,7 +1622,7 @@ class Thermostat(object):
             "n_days_both_heating_and_cooling": n_days_both,
             "n_days_insufficient_data": n_days_insufficient_data,
             "n_core_cooling_days": n_core_cooling_days,
-            "baseline_percentile_core_cooling_comfort_temperature": baseline10_comfort_temperature,
+            # "baseline_percentile_core_cooling_comfort_temperature": baseline10_comfort_temperature,
             "regional_average_baseline_cooling_comfort_temperature": baseline_regional_cooling_comfort_temperature,
             "percent_savings_baseline_percentile": savings_baseline10,
             "avoided_daily_mean_core_day_runtime_baseline_percentile": avoided_runtime_baseline10.mean(),
@@ -1632,11 +1663,10 @@ class Thermostat(object):
         baseline_regional_heating_comfort_temperature,
     ):
 
-        baseline90_comfort_temperature = self.get_core_heating_day_baseline_setpoint(
-            core_heating_day_set
-        )
-
-        # deltaT
+        if self.use_setpoint_comfort_temp: # This makes baseline90_comfort_temperature a pd.Series
+            baseline90_comfort_temperature = self.heating_setpoint
+        else: # This makes baseline90_comfort_temperature a float
+            baseline90_comfort_temperature = self.get_core_heating_day_baseline_setpoint(core_heating_day_set)
         daily_runtime = self.heat_runtime_daily[core_heating_day_set.daily]
 
         (
@@ -1784,7 +1814,7 @@ class Thermostat(object):
             "n_days_both_heating_and_cooling": n_days_both,
             "n_days_insufficient_data": n_days_insufficient_data,
             "n_core_heating_days": n_core_heating_days,
-            "baseline_percentile_core_heating_comfort_temperature": baseline90_comfort_temperature,
+            # "baseline_percentile_core_heating_comfort_temperature": baseline90_comfort_temperature,
             "regional_average_baseline_heating_comfort_temperature": baseline_regional_heating_comfort_temperature,
             "percent_savings_baseline_percentile": savings_baseline90,
             "avoided_daily_mean_core_day_runtime_baseline_percentile": avoided_runtime_baseline90.mean(),

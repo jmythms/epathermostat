@@ -54,6 +54,8 @@ TAU_SAVE_PATH = Path('outputs')
 # Single Stage
 DATA_DIR = Path('inputs')
 METADATA_FILENAME = DATA_DIR / 'metadata.csv'
+USE_SETPOINT_COMFORT_TEMP = True
+USE_SETPOINT_SAVINGS = True
 
 # Two Stage
 # DATA_DIR = os.path.join('..', 'tests', 'data', 'two_stage')
@@ -134,7 +136,9 @@ def main():
         METADATA_FILENAME,
         verbose=VERBOSE,
         save_cache=SAVE_CACHE,
-        cache_path=CACHE_PATH)
+        cache_path=CACHE_PATH,
+        use_setpoint_comfort_temp = USE_SETPOINT_COMFORT_TEMP,
+        use_setpoint_savings = USE_SETPOINT_SAVINGS)
 
     # This logs any import errors that might have occurred.
     if import_errors:
