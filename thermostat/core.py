@@ -1094,9 +1094,9 @@ class Thermostat(object):
         self._protect_heating()
 
         if self.use_setpoint_savings:
-            core_day_set_temp_in = self.temperature_in[core_heating_day_set.hourly]
-        else:
             core_day_set_temp_in = self.heating_setpoint[core_heating_day_set.hourly]
+        else:
+            core_day_set_temp_in = self.temperature_in[core_heating_day_set.hourly]
         core_day_set_temp_out = self.temperature_out[core_heating_day_set.hourly]
         core_day_set_deltaT = core_day_set_temp_in - core_day_set_temp_out
 
@@ -1296,7 +1296,8 @@ class Thermostat(object):
         # temp_baseline will be a float if use_setpoint_comfort_temp is False, 
         # but it can be a pd.Series/float when use_setpoint_comfort_temp is True. This is because 
         # get_baseline_cooling_demand is used in multiple places. 
-        if self.use_setpoint_comfort_temp and isinstance(temp_baseline, pd.Series):
+        # if self.use_setpoint_comfort_temp and isinstance(temp_baseline, pd.Series):
+        if isinstance(temp_baseline, pd.Series):
             hourly_temp_baseline = temp_baseline[core_cooling_day_set.hourly]
             hourly_cdd = (tau - (hourly_temp_baseline - hourly_temp_out)).apply(
             lambda x: np.maximum(x, 0)
@@ -1351,7 +1352,8 @@ class Thermostat(object):
         # temp_baseline will be a float if use_setpoint_comfort_temp is False, 
         # but it can be a pd.Series/float when use_setpoint_comfort_temp is True. This is because 
         # get_baseline_cooling_demand is used in multiple places. 
-        if self.use_setpoint_comfort_temp and isinstance(temp_baseline, pd.Series):
+        # if self.use_setpoint_comfort_temp and isinstance(temp_baseline, pd.Series):
+        if isinstance(temp_baseline, pd.Series):
             hourly_heating_temp_baseline = temp_baseline[core_heating_day_set.hourly]
             hourly_hdd = (hourly_heating_temp_baseline - hourly_temp_out - tau).apply(
                 lambda x: np.maximum(x, 0))
@@ -1484,6 +1486,8 @@ class Thermostat(object):
 
         daily_runtime = self.cool_runtime_daily[core_cooling_day_set.daily]
 
+        # How we use setpoints for calculating savings is by 
+        # using setpoint for calculating tau and alpha. The demand is unused here. 
         (
             demand,
             tau,
@@ -1652,6 +1656,8 @@ class Thermostat(object):
             "core_cooling_days_mean_outdoor_temperature": core_cooling_days_mean_outdoor_temperature,
             "core_mean_indoor_temperature": core_cooling_days_mean_indoor_temperature,
             "core_mean_outdoor_temperature": core_cooling_days_mean_outdoor_temperature,
+            "Use setpoint comfort temperature": self.use_setpoint_comfort_temp,
+            "Use setpoint savings": self.use_setpoint_savings
         }
         return outputs
 
@@ -1669,6 +1675,8 @@ class Thermostat(object):
             baseline90_comfort_temperature = self.get_core_heating_day_baseline_setpoint(core_heating_day_set)
         daily_runtime = self.heat_runtime_daily[core_heating_day_set.daily]
 
+        # How we use setpoints for calculating savings is by 
+        # using setpoint for calculating tau and alpha. The demand is unused here. 
         (
             demand,
             tau,
@@ -1844,6 +1852,8 @@ class Thermostat(object):
             "core_heating_days_mean_outdoor_temperature": core_heating_days_mean_outdoor_temperature,
             "core_mean_indoor_temperature": core_heating_days_mean_indoor_temperature,
             "core_mean_outdoor_temperature": core_heating_days_mean_outdoor_temperature,
+            "Use setpoint comfort temperature": self.use_setpoint_comfort_temp,
+            "Use setpoint savings": self.use_setpoint_savings
         }
 
         return outputs
