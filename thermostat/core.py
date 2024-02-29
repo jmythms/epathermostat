@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
 from collections import namedtuple
 import inspect
+from pathlib import Path
 import warnings
 import logging
+from matplotlib import pyplot as plt
 
 import pandas as pd
 import numpy as np
@@ -1521,6 +1523,10 @@ class Thermostat(object):
             baseline10_comfort_temperature,
             tau,
         )
+        
+        self.plot_core_hourly_temp_histogram(core_cooling_day_set,
+                                             baseline10_comfort_temperature,
+                                             "cooling")
 
         baseline10_runtime = self.get_baseline_cooling_runtime(baseline10_demand, alpha)
 
@@ -1649,6 +1655,58 @@ class Thermostat(object):
             "Use setpoint savings": self.use_setpoint_savings
         }
         return outputs
+    
+    FILE_NAME_MAP = {
+        (True, True): "T_Spt for Comfort, T_Spt for Sav",
+        (True, False): "T_Spt for Comfort, T_zon for Sav",
+        (False, False): "T_zon for Comfort, T_zon for Sav",
+    }
+    
+    def plot_core_hourly_temp_histogram(self, core_day_set, baseline_temp, heating_or_cooling):
+
+        """Plot a histogram of the hourly temperature data for a core day set.
+        
+        Parameters
+        ----------
+        core_day_set : thermostat.core.CoreDaySet
+            Core day set over which to calculate heating demand.
+        baseline_temp : float
+            Baseline comfort temperature
+        heating_or_cooling : str
+            "heating" or "cooling" to indicate which season we are plotting
+        """        
+        # Assuming 'self.temperature_in[core_day_set.hourly]' is a pandas Series
+        temperature_data = self.temperature_in[core_day_set.hourly]  # Example data
+
+        fig, ax = plt.subplots()
+
+        # Calculate bin edges and counts
+        counts, bins, patches = ax.hist(temperature_data, bins=20, rwidth=0.8, edgecolor='black', alpha=0.7)
+
+        # Convert counts to percentages
+        total = counts.sum()
+        percentages = (counts / total) * 100
+
+        # Clear the histogram to plot it again with percentages
+        ax.clear()
+
+        # Plot with percentages
+        ax.hist(temperature_data, bins=bins, rwidth=0.8, weights=np.ones_like(temperature_data) / total, edgecolor='black', alpha=0.7)
+        ax.axvline(baseline_temp, color="red", linestyle="dashed")
+
+        # Set y-axis to show percentages
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.0f}%'.format(y * 100)))
+
+        # Optionally, set labels
+        ax.set_xlabel('Temperature [F]')
+        ax.set_ylabel('Percentage of Hours')
+        ax.set_title(f'Temperature Distribution for core {heating_or_cooling} season')
+        
+        dir_path = f"output_graphs/AC_Comb/{self.FILE_NAME_MAP[(self.use_setpoint_comfort_temp,self.use_setpoint_savings)]}/{heating_or_cooling}_core"
+        Path(dir_path).mkdir(parents=True, exist_ok=True)        
+        plt.savefig(f"{dir_path}/{heating_or_cooling}_{self.thermostat_id}.png")
+        plt.close()
+        
 
     def _calculate_heating_epa_field_savings_metrics(
         self,
@@ -1705,6 +1763,10 @@ class Thermostat(object):
 
         average_daily_heating_runtime = np.divide(total_runtime_core_heating, n_days)
 
+        self.plot_core_hourly_temp_histogram(core_heating_day_set,
+                                             baseline90_comfort_temperature,
+                                             "heating")
+        
         baseline90_demand = self.get_baseline_heating_demand(
             core_heating_day_set,
             baseline90_comfort_temperature,
