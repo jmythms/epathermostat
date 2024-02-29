@@ -1297,15 +1297,9 @@ class Thermostat(object):
         # but it can be a pd.Series/float when use_setpoint_comfort_temp is True. This is because 
         # get_baseline_cooling_demand is used in multiple places. 
         # if self.use_setpoint_comfort_temp and isinstance(temp_baseline, pd.Series):
-        if isinstance(temp_baseline, pd.Series):
-            hourly_temp_baseline = temp_baseline[core_cooling_day_set.hourly]
-            hourly_cdd = (tau - (hourly_temp_baseline - hourly_temp_out)).apply(
+        hourly_cdd = (tau - (temp_baseline - hourly_temp_out)).apply(
             lambda x: np.maximum(x, 0)
         )
-        else:
-            hourly_cdd = (tau - (temp_baseline - hourly_temp_out)).apply(
-                lambda x: np.maximum(x, 0)
-            )
         demand = np.array(
             [
                 cdd.sum() / 24
@@ -1353,14 +1347,9 @@ class Thermostat(object):
         # but it can be a pd.Series/float when use_setpoint_comfort_temp is True. This is because 
         # get_baseline_cooling_demand is used in multiple places. 
         # if self.use_setpoint_comfort_temp and isinstance(temp_baseline, pd.Series):
-        if isinstance(temp_baseline, pd.Series):
-            hourly_heating_temp_baseline = temp_baseline[core_heating_day_set.hourly]
-            hourly_hdd = (hourly_heating_temp_baseline - hourly_temp_out - tau).apply(
-                lambda x: np.maximum(x, 0))
-        else:
-            hourly_hdd = (temp_baseline - hourly_temp_out - tau).apply(
-                lambda x: np.maximum(x, 0)
-                )
+        hourly_hdd = (temp_baseline - hourly_temp_out - tau).apply(
+            lambda x: np.maximum(x, 0)
+            )
         demand = np.array(
             [
                 hdd.sum() / 24
@@ -1480,7 +1469,7 @@ class Thermostat(object):
     ):
 
         if self.use_setpoint_comfort_temp: # This makes baseline10_comfort_temperature a pd.Series
-            baseline10_comfort_temperature = self.cooling_setpoint
+            baseline10_comfort_temperature = self.cooling_setpoint[core_cooling_day_set.hourly].dropna().quantile(0.1)
         else: # This makes baseline10_comfort_temperature a float
             baseline10_comfort_temperature = self.get_core_cooling_day_baseline_setpoint(core_cooling_day_set)
 
@@ -1626,7 +1615,7 @@ class Thermostat(object):
             "n_days_both_heating_and_cooling": n_days_both,
             "n_days_insufficient_data": n_days_insufficient_data,
             "n_core_cooling_days": n_core_cooling_days,
-            # "baseline_percentile_core_cooling_comfort_temperature": baseline10_comfort_temperature,
+            "baseline_percentile_core_cooling_comfort_temperature": baseline10_comfort_temperature,
             "regional_average_baseline_cooling_comfort_temperature": baseline_regional_cooling_comfort_temperature,
             "percent_savings_baseline_percentile": savings_baseline10,
             "avoided_daily_mean_core_day_runtime_baseline_percentile": avoided_runtime_baseline10.mean(),
@@ -1670,7 +1659,7 @@ class Thermostat(object):
     ):
 
         if self.use_setpoint_comfort_temp: # This makes baseline90_comfort_temperature a pd.Series
-            baseline90_comfort_temperature = self.heating_setpoint
+            baseline90_comfort_temperature = self.heating_setpoint[core_heating_day_set.hourly].dropna().quantile(0.9)
         else: # This makes baseline90_comfort_temperature a float
             baseline90_comfort_temperature = self.get_core_heating_day_baseline_setpoint(core_heating_day_set)
         daily_runtime = self.heat_runtime_daily[core_heating_day_set.daily]
@@ -1822,7 +1811,7 @@ class Thermostat(object):
             "n_days_both_heating_and_cooling": n_days_both,
             "n_days_insufficient_data": n_days_insufficient_data,
             "n_core_heating_days": n_core_heating_days,
-            # "baseline_percentile_core_heating_comfort_temperature": baseline90_comfort_temperature,
+            "baseline_percentile_core_heating_comfort_temperature": baseline90_comfort_temperature,
             "regional_average_baseline_heating_comfort_temperature": baseline_regional_heating_comfort_temperature,
             "percent_savings_baseline_percentile": savings_baseline90,
             "avoided_daily_mean_core_day_runtime_baseline_percentile": avoided_runtime_baseline90.mean(),
