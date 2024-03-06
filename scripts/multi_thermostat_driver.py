@@ -52,7 +52,8 @@ TAU_SAVE_PATH = Path('outputs')
 # data in the same file.
 
 # Single Stage
-DATA_DIR = Path('inputs/AC_Const')
+HVAC_THERMOSTAT = "AC_Const"
+DATA_DIR = Path(f'inputs/{HVAC_THERMOSTAT}')
 METADATA_FILENAME = DATA_DIR / 'metadata.csv'
 USE_SETPOINT_COMFORT_TEMP = False
 USE_SETPOINT_SAVINGS = False
@@ -137,6 +138,7 @@ def main():
         verbose=VERBOSE,
         save_cache=SAVE_CACHE,
         cache_path=CACHE_PATH,
+        hvac_thermostat = HVAC_THERMOSTAT,
         use_setpoint_comfort_temp = USE_SETPOINT_COMFORT_TEMP,
         use_setpoint_savings = USE_SETPOINT_SAVINGS)
 

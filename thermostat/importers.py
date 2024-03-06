@@ -163,6 +163,7 @@ def normalize_utc_offset(utc_offset):
 
 
 def from_csv(metadata_filename, verbose=False, save_cache=False, shuffle=True, 
+             hvac_thermostat=None, 
              use_setpoint_comfort_temp = False,
              use_setpoint_savings = False,
              cache_path=None,):
@@ -226,6 +227,7 @@ def from_csv(metadata_filename, verbose=False, save_cache=False, shuffle=True,
         verbose=verbose,
         save_cache=save_cache,
         cache_path=cache_path,
+        hvac_thermostat = hvac_thermostat,
         use_setpoint_comfort_temp=use_setpoint_comfort_temp,
         use_setpoint_savings=use_setpoint_savings
         )
@@ -251,7 +253,8 @@ def from_csv(metadata_filename, verbose=False, save_cache=False, shuffle=True,
 
 
 def _multiprocess_func(metadata, metadata_filename, verbose=False, save_cache=False, 
-                       cache_path=None, use_setpoint_comfort_temp = False, use_setpoint_savings = False):
+                       cache_path=None, hvac_thermostat = None,
+                       use_setpoint_comfort_temp = False, use_setpoint_savings = False):
     """ This function is a partial function for multiproccessing and shares the same arguments as from_csv.
     It is not intended to be called directly."""
     _, row = metadata
@@ -283,6 +286,7 @@ def _multiprocess_func(metadata, metadata_filename, verbose=False, save_cache=Fa
             interval_data_filename=interval_data_filename,
             save_cache=save_cache,
             cache_path=cache_path,
+            hvac_thermostat = hvac_thermostat,
             use_setpoint_comfort_temp = use_setpoint_comfort_temp,
             use_setpoint_savings = use_setpoint_savings
         )
@@ -309,6 +313,7 @@ def _multiprocess_func(metadata, metadata_filename, verbose=False, save_cache=Fa
 def get_single_thermostat(thermostat_id, zipcode,
                           heat_type, heat_stage, cool_type, cool_stage,
                           utc_offset, interval_data_filename, save_cache=False, cache_path=None,
+                          hvac_thermostat = None,
                           use_setpoint_comfort_temp = False, use_setpoint_savings = False):
     """ Load a single thermostat directly from an interval data file.
 
@@ -419,6 +424,7 @@ def get_single_thermostat(thermostat_id, zipcode,
         temp_out,
         heating_setpoint,
         cooling_setpoint,
+        hvac_thermostat,
         use_setpoint_comfort_temp,
         use_setpoint_savings,        
         cool_runtime,

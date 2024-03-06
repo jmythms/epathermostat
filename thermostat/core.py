@@ -194,6 +194,7 @@ class Thermostat(object):
         temperature_out,
         heating_setpoint,
         cooling_setpoint,
+        hvac_thermostat,
         use_setpoint_comfort_temp,
         use_setpoint_savings,
         cool_runtime,
@@ -256,6 +257,7 @@ class Thermostat(object):
         )
         self.heating_setpoint = heating_setpoint
         self.cooling_setpoint = cooling_setpoint
+        self.hvac_thermostat = hvac_thermostat
         self.use_setpoint_comfort_temp = use_setpoint_comfort_temp
         self.use_setpoint_savings = use_setpoint_savings
         self.temperature_out = self.temperature_out.where(
@@ -1474,6 +1476,8 @@ class Thermostat(object):
             baseline10_comfort_temperature = self.cooling_setpoint[core_cooling_day_set.hourly].dropna().quantile(0.1)
         else: # This makes baseline10_comfort_temperature a float
             baseline10_comfort_temperature = self.get_core_cooling_day_baseline_setpoint(core_cooling_day_set)
+        setpoint_10  = self.cooling_setpoint[core_cooling_day_set.hourly].dropna().quantile(0.1)
+        zone_10 = self.get_core_cooling_day_baseline_setpoint(core_cooling_day_set)
 
         daily_runtime = self.cool_runtime_daily[core_cooling_day_set.daily]
 
@@ -1524,8 +1528,14 @@ class Thermostat(object):
             tau,
         )
         
-        self.plot_core_hourly_temp_histogram(core_cooling_day_set,
-                                             baseline10_comfort_temperature,
+        self.plot_core_hourly_zone_temp_histogram(core_cooling_day_set,
+                                             setpoint_10,
+                                             zone_10,
+                                             "cooling")
+        
+        self.plot_core_hourly_setp_temp_histogram(core_cooling_day_set,
+                                             setpoint_10,
+                                             zone_10,
                                              "cooling")
 
         baseline10_runtime = self.get_baseline_cooling_runtime(baseline10_demand, alpha)
@@ -1657,12 +1667,13 @@ class Thermostat(object):
         return outputs
     
     FILE_NAME_MAP = {
-        (True, True): "T_Spt for Comfort, T_Spt for Sav",
-        (True, False): "T_Spt for Comfort, T_zon for Sav",
-        (False, False): "T_zon for Comfort, T_zon for Sav",
+        True: "T_Spt for Comfort",
+        False: "T_zon for Comfort",
     }
     
-    def plot_core_hourly_temp_histogram(self, core_day_set, baseline_temp, heating_or_cooling):
+    def plot_core_hourly_zone_temp_histogram(self, core_day_set, 
+                                             setpoint_temp,
+                                             zone_temp, heating_or_cooling):
 
         """Plot a histogram of the hourly temperature data for a core day set.
         
@@ -1676,7 +1687,7 @@ class Thermostat(object):
             "heating" or "cooling" to indicate which season we are plotting
         """        
         # Assuming 'self.temperature_in[core_day_set.hourly]' is a pandas Series
-        temperature_data = self.temperature_in[core_day_set.hourly]  # Example data
+        temperature_data = self.temperature_in[core_day_set.hourly]
 
         fig, ax = plt.subplots()
 
@@ -1692,7 +1703,43 @@ class Thermostat(object):
 
         # Plot with percentages
         ax.hist(temperature_data, bins=bins, rwidth=0.8, weights=np.ones_like(temperature_data) / total, edgecolor='black', alpha=0.7)
-        ax.axvline(baseline_temp, color="red", linestyle="dashed")
+        if heating_or_cooling == "heating":
+            ax.axvline(zone_temp, color="red", linestyle="dashed", label='Comfort - 90th')
+        elif heating_or_cooling == "cooling":
+            ax.axvline(zone_temp, color="red", linestyle="dashed", label='Comfort - 10th')
+        # ax.axvline(setpoint_temp, color="blue", linestyle="dashdot", label='Comfort - Setpoint')
+        HYSTERESIS = 1
+        # Convert to F to K
+        def f_to_k(f):
+            return (f - 32) * 5/9 + 273.15
+        def k_to_f(k):
+            return (k - 273.15) * 9/5 + 32
+    
+        if self.hvac_thermostat == "AC_Comb":
+            if heating_or_cooling == "heating":
+                ax.axvline(70, color="orange", linestyle="dashdot", label='Heating Default Setpoint')
+                ax.axvline(62, color="yellow", linestyle="dashdot", label='Heating Nighttime Setpoint')
+                ax.axvline(64, color="green", linestyle="dashdot", label='Heating Away Setpoint')
+            elif heating_or_cooling == "cooling":
+                ax.axvline(74, color="orange", linestyle="dashdot", label='Cooling Default Setpoint')
+                ax.axvline(82, color="yellow", linestyle="dashdot", label='Cooling Nighttime Setpoint')
+                ax.axvline(82, color="green", linestyle="dashdot", label='Cooling Away Setpoint')
+        elif self.hvac_thermostat == "AC_Const":
+            if heating_or_cooling == "heating":
+                ax.axvline(70, color="orange", linestyle="solid", label='Heating Default Setpoint')
+                ax.axvline(k_to_f((f_to_k(70)+HYSTERESIS)), color="orange", linestyle="dashdot", label='Heating Deadband Upper')
+                ax.axvline(k_to_f((f_to_k(70)-HYSTERESIS)), color="orange", linestyle="dashdot", label='Heating Deadband Lower')
+            elif heating_or_cooling == "cooling":
+                ax.axvline(74, color="blue", linestyle="solid", label='Cooling Default Setpoint')
+                ax.axvline(k_to_f((f_to_k(74)+HYSTERESIS)), color="blue", linestyle="dashdot", label='Cooling Deadband Upper')
+                ax.axvline(k_to_f((f_to_k(74)-HYSTERESIS)), color="blue", linestyle="dashdot", label='Cooling Deadband Lower')        
+        
+        # Optionally, to only show ticks on the bottom and left spines
+        ax.yaxis.tick_left()
+        ax.xaxis.tick_bottom()
+        
+        # Adding the legend
+        ax.legend(loc='upper right')
 
         # Set y-axis to show percentages
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.0f}%'.format(y * 100)))
@@ -1700,13 +1747,79 @@ class Thermostat(object):
         # Optionally, set labels
         ax.set_xlabel('Temperature [F]')
         ax.set_ylabel('Percentage of Hours')
-        ax.set_title(f'Temperature Distribution for core {heating_or_cooling} season')
+        # ax.set_title(f'Temperature Distribution for core {heating_or_cooling} season')
         
-        dir_path = f"output_graphs/AC_Comb/{self.FILE_NAME_MAP[(self.use_setpoint_comfort_temp,self.use_setpoint_savings)]}/{heating_or_cooling}_core"
+        dir_path = f"output_graphs/{self.hvac_thermostat}/ZoneTempHist_{self.FILE_NAME_MAP[(self.use_setpoint_comfort_temp)]}/{heating_or_cooling}_core"
         Path(dir_path).mkdir(parents=True, exist_ok=True)        
-        plt.savefig(f"{dir_path}/{heating_or_cooling}_{self.thermostat_id}.png")
+        plt.savefig(f"{dir_path}/{self.hvac_thermostat}_{heating_or_cooling}_{self.thermostat_id}.png")
         plt.close()
+       
+    def plot_core_hourly_setp_temp_histogram(self, core_day_set, setpoint_temp,
+                                             zone_temp, heating_or_cooling):
+
+        """Plot a histogram of the hourly temperature data for a core day set.
         
+        Parameters
+        ----------
+        core_day_set : thermostat.core.CoreDaySet
+            Core day set over which to calculate heating demand.
+        baseline_temp : float
+            Baseline comfort temperature
+        heating_or_cooling : str
+            "heating" or "cooling" to indicate which season we are plotting
+        """        
+        # Assuming 'self.temperature_in[core_day_set.hourly]' is a pandas Series
+        if heating_or_cooling == "heating":
+            temperature_data = self.heating_setpoint[core_day_set.hourly]
+        elif heating_or_cooling == "cooling":
+            temperature_data = self.cooling_setpoint[core_day_set.hourly]
+        else:
+            raise ValueError("heating_or_cooling must be 'heating' or 'cooling'")
+
+        fig, ax = plt.subplots()
+
+        # Calculate bin edges and counts
+        counts, bins, patches = ax.hist(temperature_data, bins=20, rwidth=0.8, edgecolor='black', alpha=0.7)
+
+        # Convert counts to percentages
+        total = counts.sum()
+        percentages = (counts / total) * 100
+
+        # Clear the histogram to plot it again with percentages
+        ax.clear()
+
+        # Plot with percentages
+        ax.hist(temperature_data, bins=bins, rwidth=0.8, weights=np.ones_like(temperature_data) / total, edgecolor='black', alpha=0.7)
+        if heating_or_cooling == "heating":
+            ax.axvline(zone_temp, color="red", linestyle="dashed", label='Comfort - 90th')
+        elif heating_or_cooling == "cooling":
+            ax.axvline(zone_temp, color="red", linestyle="dashed", label='Comfort - 10th')
+        if self.hvac_thermostat == "AC_Comb":
+            if heating_or_cooling == "heating":
+                ax.axvline(70, color="orange", linestyle="dashdot", label='Heating Default Setpoint')
+                ax.axvline(62, color="yellow", linestyle="dashdot", label='Heating Nighttime Setpoint')
+                ax.axvline(64, color="green", linestyle="dashdot", label='Heating Away Setpoint')
+            elif heating_or_cooling == "cooling":
+                ax.axvline(74, color="orange", linestyle="dashdot", label='Cooling Default Setpoint')
+                ax.axvline(82, color="yellow", linestyle="dashdot", label='Cooling Nighttime Setpoint')
+                ax.axvline(82, color="green", linestyle="dashdot", label='Cooling Away Setpoint')
+            
+        
+        # Adding the legend
+        ax.legend(loc='upper right')
+
+        # Set y-axis to show percentages
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.0f}%'.format(y * 100)))
+
+        # Optionally, set labels
+        ax.set_xlabel('Temperature [F]')
+        ax.set_ylabel('Percentage of Hours')
+        # ax.set_title(f'Temperature Distribution for core {heating_or_cooling} season')
+        
+        dir_path = f"output_graphs/{self.hvac_thermostat}/SetpTempHist_{self.FILE_NAME_MAP[(self.use_setpoint_comfort_temp)]}/{heating_or_cooling}_core"
+        Path(dir_path).mkdir(parents=True, exist_ok=True)        
+        plt.savefig(f"{dir_path}/{self.hvac_thermostat}_{heating_or_cooling}_{self.thermostat_id}.png")
+        plt.close()        
 
     def _calculate_heating_epa_field_savings_metrics(
         self,
@@ -1720,7 +1833,10 @@ class Thermostat(object):
             baseline90_comfort_temperature = self.heating_setpoint[core_heating_day_set.hourly].dropna().quantile(0.9)
         else: # This makes baseline90_comfort_temperature a float
             baseline90_comfort_temperature = self.get_core_heating_day_baseline_setpoint(core_heating_day_set)
+        setpoint90 = self.heating_setpoint[core_heating_day_set.hourly].dropna().quantile(0.9)
+        zone90  = self.get_core_heating_day_baseline_setpoint(core_heating_day_set)
         daily_runtime = self.heat_runtime_daily[core_heating_day_set.daily]
+        
 
         # How we use setpoints for calculating savings is by 
         # using setpoint for calculating tau and alpha. The demand is unused here. 
@@ -1763,8 +1879,14 @@ class Thermostat(object):
 
         average_daily_heating_runtime = np.divide(total_runtime_core_heating, n_days)
 
-        self.plot_core_hourly_temp_histogram(core_heating_day_set,
-                                             baseline90_comfort_temperature,
+        self.plot_core_hourly_zone_temp_histogram(core_heating_day_set,
+                                             setpoint90,
+                                             zone90,
+                                             "heating")
+        
+        self.plot_core_hourly_setp_temp_histogram(core_heating_day_set,
+                                             setpoint90,
+                                             zone90,
                                              "heating")
         
         baseline90_demand = self.get_baseline_heating_demand(
