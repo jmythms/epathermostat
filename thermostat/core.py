@@ -1733,7 +1733,21 @@ class Thermostat(object):
                 ax.axvline(74, color="blue", linestyle="solid", label='Cooling Default Setpoint')
                 ax.axvline(k_to_f((f_to_k(74)+HYSTERESIS)), color="blue", linestyle="dashdot", label='Cooling Deadband Upper')
                 ax.axvline(k_to_f((f_to_k(74)-HYSTERESIS)), color="blue", linestyle="dashdot", label='Cooling Deadband Lower')        
-        
+
+
+        # Create a file that will store the data
+        if self.hvac_thermostat == "AC_Const":
+            csv_dir_path = f"outputs/bad{heating_or_cooling}Days"
+            Path(csv_dir_path).mkdir(parents=True, exist_ok=True)
+            with open(f'outputs/bad{heating_or_cooling}Days/{self.hvac_thermostat}_{self.thermostat_id}.csv', 'w') as f:
+                f.write('Date,Hourly Temp\n')
+                for i in range(len(temperature_data)):
+                    if heating_or_cooling == "cooling" and temperature_data[i] < k_to_f((f_to_k(74)-HYSTERESIS)):
+                        f.write(f"{temperature_data.index[i]},{temperature_data[i]}\n")
+                    elif heating_or_cooling == "heating" and temperature_data[i] > k_to_f((f_to_k(70)+HYSTERESIS)):
+                        f.write(f"{temperature_data.index[i]},{temperature_data[i]}\n")
+               
+                        
         # Optionally, to only show ticks on the bottom and left spines
         ax.yaxis.tick_left()
         ax.xaxis.tick_bottom()
