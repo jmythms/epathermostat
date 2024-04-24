@@ -5,7 +5,7 @@ from pathlib import Path
 import warnings
 import logging
 from matplotlib import pyplot as plt
-
+import matplotlib.dates as mdates
 import pandas as pd
 import numpy as np
 from scipy.optimize import leastsq
@@ -72,6 +72,17 @@ MINIMUM_HEATING_CORE_DAYS = {
     "Mixed-Humid": 50,
     "Very-Cold/Cold": 50,
 }
+
+HYSTERESIS = 1
+# Convert to F to K
+def f_to_k(f):
+    return (f - 32) * 5/9 + 273.15
+def k_to_f(k):
+    return (k - 273.15) * 9/5 + 32
+def c_to_f(c):
+    return c * 9/5 + 32
+def f_to_c(f):
+    return (f - 32) * 5/9
 
 # FIXME: Turning off these warnings for now
 pd.set_option("mode.chained_assignment", None)
@@ -1537,6 +1548,10 @@ class Thermostat(object):
                                              setpoint_10,
                                              zone_10,
                                              "cooling")
+        
+        self.plot_chicago_bad_cooling(core_cooling_day_set,
+                                    baseline10_comfort_temperature
+                                    )
 
         baseline10_runtime = self.get_baseline_cooling_runtime(baseline10_demand, alpha)
 
@@ -1702,37 +1717,44 @@ class Thermostat(object):
         ax.clear()
 
         # Plot with percentages
-        ax.hist(temperature_data, bins=bins, rwidth=0.8, weights=np.ones_like(temperature_data) / total, edgecolor='black', alpha=0.7)
+        ax.hist(temperature_data, bins=bins, rwidth=0.8, weights=np.ones_like(temperature_data) / total, edgecolor='black', alpha=0.7, range=[60, 76])
         if heating_or_cooling == "heating":
-            ax.axvline(zone_temp, color="red", linestyle="dashed", label='Comfort - 90th')
+            ax.axvline(zone_temp, color="red", linestyle="dashed", label='Heating Comfort temperature') # - 90th')
         elif heating_or_cooling == "cooling":
-            ax.axvline(zone_temp, color="red", linestyle="dashed", label='Comfort - 10th')
+            ax.axvline(zone_temp, color="blue", linestyle="dashed", label='Cooling Comfort temperature') # - 10th')
         # ax.axvline(setpoint_temp, color="blue", linestyle="dashdot", label='Comfort - Setpoint')
-        HYSTERESIS = 1
-        # Convert to F to K
-        def f_to_k(f):
-            return (f - 32) * 5/9 + 273.15
-        def k_to_f(k):
-            return (k - 273.15) * 9/5 + 32
+
     
         if self.hvac_thermostat == "AC_Comb":
             if heating_or_cooling == "heating":
-                ax.axvline(70, color="orange", linestyle="dashdot", label='Heating Default Setpoint')
-                ax.axvline(62, color="yellow", linestyle="dashdot", label='Heating Nighttime Setpoint')
+                ax.axvline(70, color="coral", linestyle="dashdot", label='Heating Daytime Occupied Setpoint')
+                ax.axvspan(c_to_f(f_to_c(70)-HYSTERESIS), c_to_f(f_to_c(70)+HYSTERESIS), color='coral', alpha=0.2, label='Heating Deadband')
+                ax.axvline(74, color="skyblue", linestyle="dashdot", label='Cooling Daytime Occupied Setpoint')
+                ax.axvspan(c_to_f(f_to_c(74)-HYSTERESIS), c_to_f(f_to_c(74)+HYSTERESIS), color='skyblue', alpha=0.2, label='Cooling Deadband')
+                ax.axvline(62, color="blueviolet", linestyle="dashdot", label='Heating Nighttime Setpoint')
                 ax.axvline(64, color="green", linestyle="dashdot", label='Heating Away Setpoint')
             elif heating_or_cooling == "cooling":
-                ax.axvline(74, color="orange", linestyle="dashdot", label='Cooling Default Setpoint')
-                ax.axvline(82, color="yellow", linestyle="dashdot", label='Cooling Nighttime Setpoint')
-                ax.axvline(82, color="green", linestyle="dashdot", label='Cooling Away Setpoint')
+                ax.axvline(70, color="coral", linestyle="dashdot", label='Heating Daytime Occupied Setpoint')
+                ax.axvspan(c_to_f(f_to_c(70)-HYSTERESIS), c_to_f(f_to_c(70)+HYSTERESIS), color='coral', alpha=0.2, label='Heating Deadband')
+                ax.axvline(74, color="skyblue", linestyle="dashdot", label='Cooling Daytime Occupied Setpoint')
+                ax.axvspan(c_to_f(f_to_c(74)-HYSTERESIS), c_to_f(f_to_c(74)+HYSTERESIS), color='skyblue', alpha=0.2, label='Cooling Deadband')
+                ax.axvline(82, color="blueviolet", linestyle="dashdot", label='Cooling Nighttime/Away Setpoint')
+                # ax.axvline(82, color="green", linestyle="dashdot", label='Cooling Away Setpoint')
         elif self.hvac_thermostat == "AC_Const":
             if heating_or_cooling == "heating":
-                ax.axvline(70, color="orange", linestyle="solid", label='Heating Default Setpoint')
-                ax.axvline(k_to_f((f_to_k(70)+HYSTERESIS)), color="orange", linestyle="dashdot", label='Heating Deadband Upper')
-                ax.axvline(k_to_f((f_to_k(70)-HYSTERESIS)), color="orange", linestyle="dashdot", label='Heating Deadband Lower')
+                ax.axvline(70, color="coral", linestyle="dashdot", label='Heating Daytime Occupied Setpoint')
+                ax.axvspan(c_to_f(f_to_c(70)-HYSTERESIS), c_to_f(f_to_c(70)+HYSTERESIS), color='coral', alpha=0.2, label='Heating Deadband')
+                ax.axvline(74, color="skyblue", linestyle="dashdot", label='Cooling Daytime Occupied Setpoint')
+                ax.axvspan(c_to_f(f_to_c(74)-HYSTERESIS), c_to_f(f_to_c(74)+HYSTERESIS), color='skyblue', alpha=0.2, label='Cooling Deadband')
+                # ax.axvline(k_to_f((f_to_k(70)+HYSTERESIS)), color="coral", linestyle="dashdot", label='Heating Deadband Upper')
+                # ax.axvline(k_to_f((f_to_k(70)-HYSTERESIS)), color="coral", linestyle="dashdot", label='Heating Deadband Lower')
             elif heating_or_cooling == "cooling":
-                ax.axvline(74, color="blue", linestyle="solid", label='Cooling Default Setpoint')
-                ax.axvline(k_to_f((f_to_k(74)+HYSTERESIS)), color="blue", linestyle="dashdot", label='Cooling Deadband Upper')
-                ax.axvline(k_to_f((f_to_k(74)-HYSTERESIS)), color="blue", linestyle="dashdot", label='Cooling Deadband Lower')        
+                ax.axvline(70, color="coral", linestyle="dashdot", label='Heating Daytime Occupied Setpoint')
+                ax.axvspan(c_to_f(f_to_c(70)-HYSTERESIS), c_to_f(f_to_c(70)+HYSTERESIS), color='coral', alpha=0.2, label='Heating Deadband')
+                ax.axvline(74, color="skyblue", linestyle="dashdot", label='Cooling Daytime Occupied Setpoint')
+                ax.axvspan(c_to_f(f_to_c(74)-HYSTERESIS), c_to_f(f_to_c(74)+HYSTERESIS), color='skyblue', alpha=0.2, label='Cooling Deadband')
+                # ax.axvline(k_to_f((f_to_k(74)+HYSTERESIS)), color="blue", linestyle="dashdot", label='Cooling Deadband Upper')
+                # ax.axvline(k_to_f((f_to_k(74)-HYSTERESIS)), color="blue", linestyle="dashdot", label='Cooling Deadband Lower')        
 
 
         # Create a file that will store the data
@@ -1748,12 +1770,29 @@ class Thermostat(object):
                         f.write(f"{temperature_data.index[i]},{temperature_data[i]}\n")
                
                         
+        # # Add a horizontal arrow pointing left from comfort temperature
+        # y_middle = (ax.get_ylim()[1] - ax.get_ylim()[0]) / 2
+        # x_quarter = ax.get_xlim()[0] + (ax.get_xlim()[1] - ax.get_xlim()[0]) / 4
+        # ax.set_aspect('auto')
+        # # ax.annotate(
+        # #     f'Savings',
+        # #     xy=(zone_temp, y_middle),
+        # #     xytext=(x_quarter, y_middle),
+        # #     arrowprops=dict(facecolor='red', arrowstyle='<-', color = 'red'),
+        # #     # horizontalalignment='center',
+        # #     # verticalalignment='bottom',
+        # #     xycoords='data', textcoords='data'
+        # # )
+        
         # Optionally, to only show ticks on the bottom and left spines
         ax.yaxis.tick_left()
         ax.xaxis.tick_bottom()
+        # ax.set_xlim(left=68, right= 84)
+        
+        ax.set_xlim(left=60, right= 76)
         
         # Adding the legend
-        ax.legend(loc='upper right')
+        ax.legend(loc='upper left', prop={'size': 8})
 
         # Set y-axis to show percentages
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.0f}%'.format(y * 100)))
@@ -1767,6 +1806,123 @@ class Thermostat(object):
         Path(dir_path).mkdir(parents=True, exist_ok=True)        
         plt.savefig(f"{dir_path}/{self.hvac_thermostat}_{heating_or_cooling}_{self.thermostat_id}.png")
         plt.close()
+             
+        
+    def plot_chicago_bad_cooling(self,
+                                core_day_set,
+                                comfort_temperature):
+            # Assuming 'self.temperature_in[core_day_set.hourly]' is a pandas Series
+            if self.thermostat_id == "31383":
+                
+                csv_path = "inputs/minute_CSV/weird_cooling.csv"
+                df = pd.read_csv(csv_path, parse_dates=['Time'], index_col='Time')
+                if not isinstance(df.index, pd.DatetimeIndex):
+                    logger.info("Converting df to datetime index")
+                    df.index = pd.to_datetime(df.index)
+                
+                # temperature_data = self.temperature_in[core_day_set.hourly]
+                specific_date = '2017-05-12'
+                filtered_df = df.loc[specific_date]
+            
+                window_size = 10
+
+                # Select the column to plot
+                temperature_data = filtered_df['read_TroomTemp_y'].rolling(window=window_size).mean() #smoothing out to avoid jagged edges
+                temperature_data = temperature_data.apply(c_to_f)
+                filtered_temperatures = temperature_data[specific_date]
+                index_array = filtered_temperatures.index.to_numpy()
+                # Plot the data
+                plt.figure(figsize=(10, 6))
+                plt.plot(index_array, filtered_temperatures.values, label= "Room Temperature")
+                
+                heating_setpoint = 70
+                cooling_setpoint = 74
+                plt.axhline(y=heating_setpoint, color='coral', linestyle='--', label=f'Heating setpoint')
+                plt.axhline(y=cooling_setpoint, color='skyblue', linestyle='--', label=f'Cooling setpoint')
+                plt.axhline(y=comfort_temperature, color='r', linestyle='--', label=f'Comfort temperature')
+                
+                # Add hysteresis bands
+                plt.fill_between(index_array, c_to_f(f_to_c(heating_setpoint)-HYSTERESIS), c_to_f(f_to_c(heating_setpoint)+HYSTERESIS), color='coral', alpha=0.2, label='Heating Deadband')
+                plt.fill_between(index_array, c_to_f(f_to_c(cooling_setpoint)-HYSTERESIS), c_to_f(f_to_c(cooling_setpoint)+HYSTERESIS), color='skyblue', alpha=0.2, label='Cooling Deadband')
+                
+                # plt.title(f'Temperatures for IL - DuPage County on {specific_date}')
+                plt.xlabel('Time')
+                plt.ylabel('Temperature [F]')
+                
+                # Format the x-axis to show time only
+                ax = plt.gca()
+                time_fmt = mdates.DateFormatter('%H:%M')  # Hour:Minute format
+                ax.xaxis.set_major_formatter(time_fmt)
+                
+                plt.grid(True)
+                plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+                plt.legend()
+                plt.tight_layout()  # Adjust layout to make room for label rotation
+                dir_path = f"output_graphs/badDays"
+                Path(dir_path).mkdir(parents=True, exist_ok=True)
+                plt.savefig(f"{dir_path}/{self.thermostat_id}_badCooling_{specific_date}.png")
+    
+    def plot_chicago_bad_heating(self,
+                                core_day_set,
+                                comfort_temperature):
+        # Assuming 'self.temperature_in[core_day_set.hourly]' is a pandas Series
+        if self.thermostat_id == "31383":
+            
+            # csv_path = "inputs/minute_CSV/IL - DuPage County - 31383 - c3e395a9-d35a-478e-8883-94d4c5f8c34c - Details-data-2024-04-09 19_01_53.csv"
+            csv_path = "inputs/minute_CSV/normal_heating.csv"
+            df = pd.read_csv(csv_path, parse_dates=['Time'], index_col='Time')
+            if not isinstance(df.index, pd.DatetimeIndex):
+                logger.info("Converting df to datetime index")
+                df.index = pd.to_datetime(df.index)
+            
+            specific_date = '2017-05-04'
+            # specific_date = '2017-05-05'
+            
+            filtered_df = df.loc[specific_date]
+            
+            window_size = 10
+
+            # Select the column to plot
+            temperature_data = filtered_df['read_TroomTemp_y'].rolling(window=window_size).mean() #smoothing out to avoid jagged edges
+            temperature_data = temperature_data.apply(c_to_f)
+            # temperature_data = self.temperature_in[core_day_set.hourly]
+            
+            filtered_temperatures = temperature_data[specific_date]
+            index_array = filtered_temperatures.index.to_numpy()
+            # Plot the data
+            plt.figure(figsize=(10, 6))
+            plt.plot(index_array, filtered_temperatures.values, label= "Room Temperature")
+            
+            
+            heating_setpoint = 70
+            cooling_setpoint = 74
+            plt.axhline(y=heating_setpoint, color='coral', linestyle='--', label=f'Heating Setpoint')
+            plt.axhline(y=cooling_setpoint, color='skyblue', linestyle='--', label=f'Cooling Setpoint')
+            plt.axhline(y=comfort_temperature, color='r', linestyle='--', label=f'Heating Comfort Temperature')
+            
+            # Add hysteresis bands
+            plt.fill_between(index_array, c_to_f(f_to_c(heating_setpoint)-HYSTERESIS), c_to_f(f_to_c(heating_setpoint)+HYSTERESIS), color='coral', alpha=0.2, label='Heating Deadband')
+            plt.fill_between(index_array, c_to_f(f_to_c(cooling_setpoint)-HYSTERESIS), c_to_f(f_to_c(cooling_setpoint)+HYSTERESIS), color='skyblue', alpha=0.2, label='Cooling Deadband')
+            
+            
+            
+            # plt.title(f'Temperatures for IL - DuPage County on {specific_date}')
+            plt.xlabel('Time')
+            plt.ylabel('Temperature [F]')
+            
+            # Format the x-axis to show time only
+            ax = plt.gca()
+            time_fmt = mdates.DateFormatter('%H:%M')  # Hour:Minute format
+            ax.xaxis.set_major_formatter(time_fmt)
+            
+            plt.grid(True)
+            plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+            plt.legend(loc = 'upper left')
+            plt.tight_layout()  # Adjust layout to make room for label rotation
+            dir_path = f"output_graphs/badDays"
+            Path(dir_path).mkdir(parents=True, exist_ok=True)
+            plt.savefig(f"{dir_path}/{self.thermostat_id}_NotBadHeating_{specific_date}.png")
+     
        
     def plot_core_hourly_setp_temp_histogram(self, core_day_set, setpoint_temp,
                                              zone_temp, heating_or_cooling):
@@ -1810,17 +1966,17 @@ class Thermostat(object):
             ax.axvline(zone_temp, color="red", linestyle="dashed", label='Comfort - 10th')
         if self.hvac_thermostat == "AC_Comb":
             if heating_or_cooling == "heating":
-                ax.axvline(70, color="orange", linestyle="dashdot", label='Heating Default Setpoint')
-                ax.axvline(62, color="yellow", linestyle="dashdot", label='Heating Nighttime Setpoint')
+                ax.axvline(70, color="coral", linestyle="dashdot", label='Heating Default Setpoint')
+                ax.axvline(62, color="blueviolet", linestyle="dashdot", label='Heating Nighttime Setpoint')
                 ax.axvline(64, color="green", linestyle="dashdot", label='Heating Away Setpoint')
             elif heating_or_cooling == "cooling":
-                ax.axvline(74, color="orange", linestyle="dashdot", label='Cooling Default Setpoint')
-                ax.axvline(82, color="yellow", linestyle="dashdot", label='Cooling Nighttime Setpoint')
+                ax.axvline(74, color="coral", linestyle="dashdot", label='Cooling Default Setpoint')
+                ax.axvline(82, color="blueviolet", linestyle="dashdot", label='Cooling Nighttime Setpoint')
                 ax.axvline(82, color="green", linestyle="dashdot", label='Cooling Away Setpoint')
             
         
         # Adding the legend
-        ax.legend(loc='upper right')
+        ax.legend(loc='upper left')
 
         # Set y-axis to show percentages
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: '{:.0f}%'.format(y * 100)))
@@ -1902,6 +2058,10 @@ class Thermostat(object):
                                              setpoint90,
                                              zone90,
                                              "heating")
+        
+        self.plot_chicago_bad_heating(core_heating_day_set,
+                                    baseline90_comfort_temperature
+                                    )
         
         baseline90_demand = self.get_baseline_heating_demand(
             core_heating_day_set,
