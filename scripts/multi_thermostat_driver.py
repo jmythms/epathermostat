@@ -52,7 +52,7 @@ TAU_SAVE_PATH = Path('outputs')
 # data in the same file.
 
 # Single Stage
-HVAC_THERMOSTAT = "AC_Const"
+HVAC_THERMOSTAT = "urbanRoth_baseline"
 DATA_DIR = Path(f'inputs/{HVAC_THERMOSTAT}')
 METADATA_FILENAME = DATA_DIR / 'metadata.csv'
 USE_SETPOINT_COMFORT_TEMP = False

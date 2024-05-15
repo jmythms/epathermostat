@@ -1740,7 +1740,7 @@ class Thermostat(object):
                 ax.axvspan(c_to_f(f_to_c(74)-HYSTERESIS), c_to_f(f_to_c(74)+HYSTERESIS), color='skyblue', alpha=0.2, label='Cooling Deadband')
                 ax.axvline(82, color="blueviolet", linestyle="dashdot", label='Cooling Nighttime/Away Setpoint')
                 # ax.axvline(82, color="green", linestyle="dashdot", label='Cooling Away Setpoint')
-        elif self.hvac_thermostat == "AC_Const":
+        elif (self.hvac_thermostat == "AC_Const") or (self.hvac_thermostat == "urbanRoth_baseline"):
             if heating_or_cooling == "heating":
                 ax.axvline(70, color="coral", linestyle="dashdot", label='Heating Daytime Occupied Setpoint')
                 ax.axvspan(c_to_f(f_to_c(70)-HYSTERESIS), c_to_f(f_to_c(70)+HYSTERESIS), color='coral', alpha=0.2, label='Heating Deadband')
@@ -1758,7 +1758,7 @@ class Thermostat(object):
 
 
         # Create a file that will store the data
-        if self.hvac_thermostat == "AC_Const":
+        if (self.hvac_thermostat == "AC_Const") or (self.hvac_thermostat == "urbanRoth_baseline"):
             csv_dir_path = f"outputs/bad{heating_or_cooling}Days"
             Path(csv_dir_path).mkdir(parents=True, exist_ok=True)
             with open(f'outputs/bad{heating_or_cooling}Days/{self.hvac_thermostat}_{self.thermostat_id}.csv', 'w') as f:
@@ -1812,7 +1812,7 @@ class Thermostat(object):
                                 core_day_set,
                                 comfort_temperature):
             # Assuming 'self.temperature_in[core_day_set.hourly]' is a pandas Series
-            if self.thermostat_id == "31383":
+            if self.thermostat_id == "83750":
                 
                 csv_path = "inputs/minute_CSV/weird_cooling.csv"
                 df = pd.read_csv(csv_path, parse_dates=['Time'], index_col='Time')
@@ -1866,7 +1866,7 @@ class Thermostat(object):
                                 core_day_set,
                                 comfort_temperature):
         # Assuming 'self.temperature_in[core_day_set.hourly]' is a pandas Series
-        if self.thermostat_id == "31383":
+        if self.thermostat_id == "83750":
             
             # csv_path = "inputs/minute_CSV/IL - DuPage County - 31383 - c3e395a9-d35a-478e-8883-94d4c5f8c34c - Details-data-2024-04-09 19_01_53.csv"
             csv_path = "inputs/minute_CSV/normal_heating.csv"
