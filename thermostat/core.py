@@ -573,6 +573,13 @@ class Thermostat(object):
         )
         # returned as list for consistency
         core_heating_day_sets = [core_heating_day_set]
+        
+        # Ensure the output directory exists
+        output_dir = Path("outputs/core_days/heating/")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        core_heating_df = self._core_day_sets_to_dataframe(core_heating_day_sets)
+        core_heating_df.to_csv(f"outputs/core_days/heating/{self.thermostat_id}.csv")
+        
         return core_heating_day_sets
 
     def get_core_cooling_days(
@@ -641,7 +648,20 @@ class Thermostat(object):
             data_end_date,
         )
         core_cooling_day_sets = [core_day_set]
+        # Ensure the output directory exists
+        output_dir = Path("outputs/core_days/cooling/")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        core_cooling_df = self._core_day_sets_to_dataframe(core_cooling_day_sets)
+        core_cooling_df.to_csv(f"outputs/core_days/cooling/{self.thermostat_id}.csv")
         return core_cooling_day_sets
+    
+    def _core_day_sets_to_dataframe(self, core_day_sets):
+        """Convert core day sets to a DataFrame for exporting to CSV."""
+        data = []
+        for core_day_set in core_day_sets:
+            for date, included in core_day_set.daily.items():
+                data.append({"date": date, "included": included, "set_name": core_day_set.name})
+        return pd.DataFrame(data)
 
     def _get_range_boolean(self, dt_index, start_date, end_date):
         after_start = dt_index >= start_date
@@ -1740,7 +1760,7 @@ class Thermostat(object):
                 ax.axvspan(c_to_f(f_to_c(74)-HYSTERESIS), c_to_f(f_to_c(74)+HYSTERESIS), color='skyblue', alpha=0.2, label='Cooling Deadband')
                 ax.axvline(82, color="blueviolet", linestyle="dashdot", label='Cooling Nighttime/Away Setpoint')
                 # ax.axvline(82, color="green", linestyle="dashdot", label='Cooling Away Setpoint')
-        elif (self.hvac_thermostat == "AC_Const") or (self.hvac_thermostat == "urbanRoth_baseline"):
+        elif (self.hvac_thermostat == "AC_Const") or (self.hvac_thermostat == "urbanRoth_baseline_setback"):
             if heating_or_cooling == "heating":
                 ax.axvline(70, color="coral", linestyle="dashdot", label='Heating Daytime Occupied Setpoint')
                 ax.axvspan(c_to_f(f_to_c(70)-HYSTERESIS), c_to_f(f_to_c(70)+HYSTERESIS), color='coral', alpha=0.2, label='Heating Deadband')
@@ -1758,7 +1778,7 @@ class Thermostat(object):
 
 
         # Create a file that will store the data
-        if (self.hvac_thermostat == "AC_Const") or (self.hvac_thermostat == "urbanRoth_baseline"):
+        if (self.hvac_thermostat == "AC_Const") or (self.hvac_thermostat == "urbanRoth_baseline_setback"):
             csv_dir_path = f"outputs/bad{heating_or_cooling}Days"
             Path(csv_dir_path).mkdir(parents=True, exist_ok=True)
             with open(f'outputs/bad{heating_or_cooling}Days/{self.hvac_thermostat}_{self.thermostat_id}.csv', 'w') as f:
