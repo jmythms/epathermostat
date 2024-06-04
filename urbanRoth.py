@@ -317,51 +317,37 @@ def calculate_percentage_difference(baseline_dict, change_dict):
                 percentage_diff[key] = None  # Handle division by zero case
     return percentage_diff
 
-
 # Calculate percentage differences
-percentage_diff_heating = calculate_percentage_difference(
-    heating_baseline, heating_values
-)
-percentage_diff_cooling = calculate_percentage_difference(
-    cooling_baseline, cooling_values
-)
+percentage_diff_heating = calculate_percentage_difference(heating_baseline, heating_values)
+percentage_diff_cooling = calculate_percentage_difference(cooling_baseline, cooling_values)
 
-# Write to CSV file
-with open("percentage_difference_cases.csv", mode="w", newline="") as file:
-    writer = csv.writer(file)
-    writer.writerow(
-        [
-            "ct_identifier",
-            # "Baseline Heating",
-            # "Change Heating",
-            "Percentage Difference Heating",
-            # "Baseline Cooling",
-            # "Change Cooling",
-            "Percentage Difference Cooling",
-        ]
-    )
+# Ensure the keys match
+common_keys = set(percentage_diff_heating.keys()).union(set(percentage_diff_cooling.keys()))
 
-    all_keys = set(heating_baseline.keys()).union(
-        heating_values.keys(), cooling_baseline.keys(), cooling_values.keys()
-    )
+# Create a DataFrame with the percentage differences
+df_percentages = pd.DataFrame({
+    'ct_identifier': [key.split(' - ')[2] for key in common_keys],
+    'percent_savings_simulation_heating': [percentage_diff_heating.get(key, None) for key in common_keys],
+    'percent_savings_simulation_cooling': [percentage_diff_cooling.get(key, None) for key in common_keys]
+})
 
-    for key in all_keys:
-        if (
-            key in heating_baseline
-            and key in heating_values
-            and key in cooling_baseline
-            and key in cooling_values
-        ):
-            writer.writerow(
-                [
-                    key.split(" - ")[2],
-                    # heating_baseline[key],
-                    # heating_values[key],
-                    percentage_diff_heating.get(key),
-                    # cooling_baseline[key],
-                    # cooling_values[key],
-                    percentage_diff_cooling.get(key),
-                ]
-            )
+df_percentages['ct_identifier'] = df_percentages['ct_identifier'].astype(str)
+
+# Read the epa_df
+epa_df = pd.read_csv("inputs/urbanRoth_baseline_setback/test_product_2024-05-16_metrics_cmfFalse_savFalse.csv")
+epa_df = epa_df[['ct_identifier', 'percent_savings_baseline_percentile', 'heating_or_cooling']]
+epa_df['ct_identifier'] = epa_df['ct_identifier'].astype(str)
+
+# Split epa_df into heating and cooling DataFrames
+df_cooling = epa_df[epa_df['heating_or_cooling'] == 'cooling_ALL'].reset_index(drop=True).drop(columns='heating_or_cooling')
+df_cooling = df_cooling.rename(columns={'percent_savings_baseline_percentile': 'percent_savings_epa_cooling'})
+df_heating = epa_df[epa_df['heating_or_cooling'] == 'heating_ALL'].reset_index(drop=True).drop(columns='heating_or_cooling')
+df_heating = df_heating.rename(columns={'percent_savings_baseline_percentile': 'percent_savings_epa_heating'})
+
+final_df = pd.merge(df_heating, df_cooling, on='ct_identifier', how='inner')
+final_df = pd.merge(final_df, df_percentages, on='ct_identifier', how='inner').dropna()
+
+# Write the updated DataFrame to CSV
+final_df.to_csv("percentage_difference_cases.csv", index=False)
 
 print("CSV file created successfully.")
